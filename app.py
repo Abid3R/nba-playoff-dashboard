@@ -29,33 +29,61 @@ st.markdown("""
     }
     .main .block-container { padding-top: 2rem; max-width: 1200px; }
 
-    /* ---- HIDE STREAMLIT BRANDING, BUT KEEP SIDEBAR TOGGLE ---- */
+    /* ---- STREAMLIT CHROME ----
+       Keep the native header alive. The sidebar open/close button is rendered
+       inside Streamlit's header, so hiding header/toolbar removes the button.
+    */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* Do NOT hide the whole Streamlit header. The sidebar reopen button lives there. */
     header[data-testid="stHeader"] {
+        display: block !important;
         visibility: visible !important;
-        background: transparent !important;
+        opacity: 1 !important;
+        background: rgba(8, 8, 15, 0.92) !important;
+        backdrop-filter: blur(10px) !important;
         height: 3rem !important;
+        z-index: 999999 !important;
     }
 
-    /* Hide extra Streamlit chrome while preserving the sidebar collapse/expand control. */
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"] {
-        visibility: hidden !important;
-        height: 0 !important;
-        position: fixed !important;
+    header[data-testid="stHeader"] * {
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
     }
 
-    [data-testid="collapsedControl"] {
+    [data-testid="stToolbar"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
+        pointer-events: auto !important;
         z-index: 999999 !important;
+    }
+
+    [data-testid="stDecoration"] {
+        display: none !important;
+    }
+
+    /* Support several Streamlit versions. */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    button[title="Open sidebar"],
+    button[title="Close sidebar"],
+    button[aria-label="Open sidebar"],
+    button[aria-label="Close sidebar"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        position: fixed !important;
         top: 0.75rem !important;
         left: 0.75rem !important;
+        z-index: 1000000 !important;
+        background: rgba(15, 15, 26, 0.96) !important;
+        border: 1px solid #fbbf24 !important;
+        border-radius: 10px !important;
+        color: #fbbf24 !important;
     }
 
     /* ---- ANIMATIONS ---- */

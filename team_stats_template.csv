@@ -1,0 +1,31 @@
+team,abbr,conference,division,seed,wins,losses,win_pct,ppg,net_rating
+Atlanta Hawks,ATL,East,Southeast,10,38,44,0.463,118.3,-1.2
+Boston Celtics,BOS,East,Atlantic,1,60,22,0.732,120.1,10.2
+Brooklyn Nets,BKN,East,Atlantic,14,28,54,0.341,111.4,-5.7
+Charlotte Hornets,CHA,East,Southeast,15,23,59,0.28,108.9,-8.4
+Chicago Bulls,CHI,East,Central,9,39,43,0.476,113.2,-1.0
+Cleveland Cavaliers,CLE,East,Central,3,51,31,0.622,115.0,5.6
+Dallas Mavericks,DAL,West,Southwest,5,50,32,0.61,118.6,3.8
+Denver Nuggets,DEN,West,Northwest,2,57,25,0.695,116.7,6.9
+Detroit Pistons,DET,East,Central,13,30,52,0.366,110.5,-6.4
+Golden State Warriors,GSW,West,Pacific,8,45,37,0.549,117.8,1.8
+Houston Rockets,HOU,West,Southwest,7,46,36,0.561,114.9,2.5
+Indiana Pacers,IND,East,Central,6,46,36,0.561,121.0,2.0
+LA Clippers,LAC,West,Pacific,6,48,34,0.585,115.6,2.9
+Los Angeles Lakers,LAL,West,Pacific,9,44,38,0.537,117.1,1.2
+Memphis Grizzlies,MEM,West,Southwest,11,36,46,0.439,112.0,-2.2
+Miami Heat,MIA,East,Southeast,8,43,39,0.524,110.8,0.9
+Milwaukee Bucks,MIL,East,Central,4,49,33,0.598,119.2,3.7
+Minnesota Timberwolves,MIN,West,Northwest,3,54,28,0.659,113.7,6.3
+New Orleans Pelicans,NOP,West,Southwest,10,42,40,0.512,115.3,0.3
+New York Knicks,NYK,East,Atlantic,2,52,30,0.634,114.6,6.1
+Oklahoma City Thunder,OKC,West,Northwest,1,59,23,0.72,120.5,9.4
+Orlando Magic,ORL,East,Southeast,5,47,35,0.573,112.3,3.1
+Philadelphia 76ers,PHI,East,Atlantic,7,45,37,0.549,114.2,1.7
+Phoenix Suns,PHX,West,Pacific,4,51,31,0.622,117.5,4.4
+Portland Trail Blazers,POR,West,Northwest,15,24,58,0.293,109.8,-8.0
+Sacramento Kings,SAC,West,Pacific,12,36,46,0.439,116.3,-1.9
+San Antonio Spurs,SAS,West,Southwest,13,31,51,0.378,112.7,-4.9
+Toronto Raptors,TOR,East,Atlantic,12,33,49,0.402,112.9,-4.1
+Utah Jazz,UTA,West,Northwest,14,29,53,0.354,111.7,-6.2
+Washington Wizards,WAS,East,Southeast,11,35,47,0.427,113.5,-3.0

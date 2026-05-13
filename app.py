@@ -1,484 +1,884 @@
-from __future__ import annotations
-
 import streamlit as st
 import pandas as pd
-import plotly.express as px
+import numpy as np
 import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime
+import time
 
-from data_utils import fetch_team_stats
-from model_utils import train_model, predict_series, get_feature_importance
-
+# ============================================================
+# PAGE CONFIG — must be first Streamlit command
+# ============================================================
 st.set_page_config(
-    page_title="NBA Playoff Intelligence",
+    page_title="NBA Playoff Predictor 2026",
     page_icon="🏀",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
-CUSTOM_CSS = """
+# ============================================================
+# CUSTOM CSS — Professional Dark Theme with Animations
+# ============================================================
+st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
 
-html, body, [class*="css"]  { font-family: 'Inter', sans-serif; }
+    /* ---- GLOBAL ---- */
+    .stApp {
+        background: linear-gradient(180deg, #08080f 0%, #0d0d1a 50%, #08080f 100%);
+    }
+    .main .block-container { padding-top: 2rem; max-width: 1200px; }
 
-.stApp {
-    background: radial-gradient(circle at top left, rgba(245, 158, 11, 0.13), transparent 30%),
-                radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 28%),
-                linear-gradient(135deg, #07111f 0%, #0f172a 45%, #111827 100%);
-    color: #F8FAFC;
-}
+    /* ---- HIDE STREAMLIT BRANDING ---- */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(2,6,23,.98));
-    border-right: 1px solid rgba(148, 163, 184, 0.18);
-}
+    /* ---- ANIMATIONS ---- */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    @keyframes glowPulse {
+        0%, 100% { box-shadow: 0 0 5px rgba(251,191,36,0.2); }
+        50% { box-shadow: 0 0 20px rgba(251,191,36,0.4); }
+    }
 
-.hero {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(148, 163, 184, 0.20);
-    border-radius: 28px;
-    padding: 42px 42px;
-    background: linear-gradient(135deg, rgba(30,41,59,.92), rgba(15,23,42,.82));
-    box-shadow: 0 24px 70px rgba(0,0,0,.28);
-    animation: fadeSlide 850ms ease-out;
-}
+    .animate-in { animation: fadeInUp 0.6s ease forwards; }
+    .animate-in-1 { animation: fadeInUp 0.6s ease 0.1s forwards; opacity: 0; }
+    .animate-in-2 { animation: fadeInUp 0.6s ease 0.2s forwards; opacity: 0; }
+    .animate-in-3 { animation: fadeInUp 0.6s ease 0.3s forwards; opacity: 0; }
+    .animate-in-4 { animation: fadeInUp 0.6s ease 0.4s forwards; opacity: 0; }
 
-.hero:before {
-    content: '';
-    position: absolute;
-    width: 420px;
-    height: 420px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(249,115,22,.34), transparent 65%);
-    right: -150px;
-    top: -180px;
-    animation: pulseGlow 3s infinite alternate ease-in-out;
-}
+    /* ---- HEADER ---- */
+    .hero-header {
+        text-align: center;
+        padding: 40px 20px 30px;
+        background: linear-gradient(135deg, #0a0a1a, #1a0a2e, #0a1a2e);
+        border-radius: 16px;
+        border: 1px solid #1a1a3a;
+        margin-bottom: 2rem;
+        animation: fadeInUp 0.6s ease;
+    }
+    .hero-header h1 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 64px;
+        letter-spacing: 8px;
+        color: #ffffff;
+        margin: 0;
+        line-height: 1;
+    }
+    .hero-sub {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 4px;
+        color: #fbbf24;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }
+    .hero-desc {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: #555;
+        margin-top: 10px;
+    }
 
-.hero h1 {
-    font-size: clamp(2.3rem, 5vw, 4.7rem);
-    line-height: .95;
-    margin: 0;
-    letter-spacing: -0.06em;
-    font-weight: 800;
-    color: #FFFFFF;
-}
+    /* ---- SERIES CARD ---- */
+    .series-card {
+        background: linear-gradient(135deg, #0f0f1a, #1a1a2e);
+        border: 1px solid #2a2a4a;
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 16px;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .series-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    }
+    .series-card.live { border-color: #ff4444; }
+    .series-card.projected {
+        border-style: dashed;
+        border-color: #fbbf24;
+        animation: glowPulse 3s infinite;
+    }
 
-.hero p {
-    color: #CBD5E1;
-    font-size: 1.08rem;
-    max-width: 820px;
-    margin-top: 18px;
-}
+    .live-badge {
+        display: inline-block;
+        background: #ff4444;
+        color: white;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 10px;
+        border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace;
+        animation: pulse 2s infinite;
+    }
+    .proj-badge {
+        display: inline-block;
+        background: #fbbf24;
+        color: #000;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 10px;
+        border-radius: 4px;
+        font-family: 'JetBrains Mono', monospace;
+    }
 
-.badge {
-    display: inline-block;
-    padding: 8px 13px;
-    border-radius: 999px;
-    color: #FDBA74;
-    background: rgba(251,146,60,.12);
-    border: 1px solid rgba(251,146,60,.30);
-    font-weight: 700;
-    font-size: .82rem;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    margin-bottom: 18px;
-}
+    .team-abbr {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        letter-spacing: 3px;
+        font-weight: 900;
+    }
+    .team-detail {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #888;
+    }
+    .score-display {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 32px;
+        color: #ffffff;
+        letter-spacing: 2px;
+    }
+    .section-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #666;
+    }
 
-.stat-card {
-    background: linear-gradient(180deg, rgba(30,41,59,.94), rgba(15,23,42,.90));
-    border: 1px solid rgba(148, 163, 184, .18);
-    border-radius: 22px;
-    padding: 22px;
-    box-shadow: 0 14px 44px rgba(0,0,0,.22);
-    transition: transform .25s ease, border-color .25s ease;
-    animation: fadeSlide 650ms ease-out;
-}
-.stat-card:hover { transform: translateY(-4px); border-color: rgba(251,146,60,.45); }
-.stat-label { color: #94A3B8; font-size: .86rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.stat-value { color: #F8FAFC; font-size: 2rem; font-weight: 800; margin-top: 4px; }
-.stat-caption { color: #CBD5E1; font-size: .86rem; margin-top: 4px; }
+    /* ---- PROB BAR ---- */
+    .prob-container { margin-top: 12px; border-top: 1px solid #2a2a4a; padding-top: 10px; }
+    .prob-bar-bg {
+        height: 10px;
+        background: #1a1a2e;
+        border-radius: 5px;
+        overflow: hidden;
+        display: flex;
+    }
+    .prob-labels {
+        display: flex;
+        justify-content: space-between;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
 
-.prediction-box {
-    border-radius: 28px;
-    padding: 28px;
-    background: linear-gradient(135deg, rgba(234,88,12,.18), rgba(37,99,235,.14));
-    border: 1px solid rgba(251,146,60,.28);
-    box-shadow: 0 18px 60px rgba(0,0,0,.25);
-    animation: fadeSlide 650ms ease-out;
-}
+    /* ---- STATS TABLE ---- */
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+    }
+    .stats-table th {
+        text-align: left;
+        padding: 10px 14px;
+        color: #fbbf24;
+        font-size: 11px;
+        letter-spacing: 1px;
+        border-bottom: 2px solid #fbbf24;
+        font-weight: 600;
+    }
+    .stats-table td {
+        padding: 10px 14px;
+        color: #ccc;
+        border-bottom: 1px solid #1a1a2e;
+    }
+    .stats-table tr:hover td { background: #1a1a2e; }
 
-.team-chip {
-    display:inline-block;
-    border-radius:999px;
-    padding: 7px 11px;
-    margin: 4px 4px 4px 0;
-    background: rgba(148,163,184,.10);
-    border: 1px solid rgba(148,163,184,.20);
-    color:#E2E8F0;
-    font-size:.84rem;
-}
+    /* ---- PLAYER CARD ---- */
+    .player-card {
+        background: linear-gradient(135deg, #0f0f1a, #1a1a2e);
+        border: 1px solid #2a2a4a;
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        transition: transform 0.3s ease;
+    }
+    .player-card:hover { transform: translateY(-4px); }
+    .player-name {
+        font-family: 'Inter', sans-serif;
+        font-weight: 800;
+        font-size: 16px;
+        color: #fff;
+        margin-bottom: 4px;
+    }
+    .player-team {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #888;
+        letter-spacing: 1px;
+    }
+    .player-stat {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 32px;
+        color: #fbbf24;
+        line-height: 1;
+    }
+    .player-stat-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: #666;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
 
-.small-note { color: #94A3B8; font-size: .88rem; }
+    /* ---- METRIC CARD ---- */
+    .metric-card {
+        background: linear-gradient(135deg, #0f0f1a, #1a1a2e);
+        border: 1px solid #2a2a4a;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+    .metric-value {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 42px;
+        color: #fbbf24;
+        line-height: 1;
+    }
+    .metric-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #888;
+        letter-spacing: 1px;
+        margin-top: 4px;
+    }
 
-@keyframes fadeSlide {
-    from { opacity: 0; transform: translateY(18px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulseGlow {
-    from { transform: scale(.92); opacity: .55; }
-    to { transform: scale(1.08); opacity: .95; }
-}
-
-.block-container { padding-top: 2.2rem; padding-bottom: 4rem; }
-.stTabs [data-baseweb="tab-list"] { gap: 8px; }
-.stTabs [data-baseweb="tab"] {
-    background: rgba(15,23,42,.72);
-    border-radius: 999px;
-    border: 1px solid rgba(148,163,184,.20);
-    color: #E2E8F0;
-    padding: 10px 18px;
-}
-.stTabs [aria-selected="true"] { background: rgba(249,115,22,.22); border-color: rgba(249,115,22,.45); }
-
-[data-testid="stMetric"] {
-    background: rgba(15,23,42,.72);
-    border: 1px solid rgba(148,163,184,.18);
-    border-radius: 18px;
-    padding: 16px;
-}
-
+    /* Fix Streamlit elements */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #1a1a2e;
+        border-radius: 8px;
+        color: #ccc;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        letter-spacing: 1px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #fbbf24 !important;
+        color: #000 !important;
+    }
+    div[data-testid="stSidebar"] {
+        background: #0a0a14;
+        border-right: 1px solid #1a1a2e;
+    }
+    .stSelectbox label, .stMultiSelect label {
+        color: #fbbf24 !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 12px !important;
+        letter-spacing: 1px !important;
+    }
 </style>
-"""
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=60 * 30, show_spinner=False)
-def load_stats(season: str, season_type: str):
-    return fetch_team_stats(season, season_type)
+# ============================================================
+# DATA
+# ============================================================
+
+TEAMS = {
+    "OKC": {"name": "Oklahoma City Thunder", "seed": 1, "conf": "West",
+            "w": 64, "l": 18, "ppg": 118.2, "opp_ppg": 109.7, "net_rtg": 8.5,
+            "fg_pct": 48.5, "fg3_pct": 38.2, "ft_pct": 80.1,
+            "reb": 45.8, "ast": 27.3, "stl": 8.9, "blk": 5.2, "tov": 13.1,
+            "color": "#007AC1", "status": "WCF"},
+    "SAS": {"name": "San Antonio Spurs", "seed": 2, "conf": "West",
+            "w": 62, "l": 20, "ppg": 115.4, "opp_ppg": 107.6, "net_rtg": 7.8,
+            "fg_pct": 47.8, "fg3_pct": 37.5, "ft_pct": 79.3,
+            "reb": 44.2, "ast": 26.8, "stl": 7.8, "blk": 5.8, "tov": 12.4,
+            "color": "#C4CED4", "status": "R2 — leads 3-2"},
+    "MIN": {"name": "Minnesota Timberwolves", "seed": 6, "conf": "West",
+            "w": 49, "l": 33, "ppg": 110.3, "opp_ppg": 108.2, "net_rtg": 2.1,
+            "fg_pct": 46.2, "fg3_pct": 36.8, "ft_pct": 78.5,
+            "reb": 43.5, "ast": 24.9, "stl": 7.2, "blk": 5.5, "tov": 13.8,
+            "color": "#236192", "status": "R2 — trails 2-3"},
+    "DET": {"name": "Detroit Pistons", "seed": 1, "conf": "East",
+            "w": 60, "l": 22, "ppg": 114.1, "opp_ppg": 107.3, "net_rtg": 6.8,
+            "fg_pct": 47.5, "fg3_pct": 37.1, "ft_pct": 79.8,
+            "reb": 44.8, "ast": 26.2, "stl": 8.1, "blk": 4.9, "tov": 12.9,
+            "color": "#C8102E", "status": "R2 — tied 2-2"},
+    "NYK": {"name": "New York Knicks", "seed": 3, "conf": "East",
+            "w": 53, "l": 29, "ppg": 116.5, "opp_ppg": 111.3, "net_rtg": 5.2,
+            "fg_pct": 47.9, "fg3_pct": 37.8, "ft_pct": 81.2,
+            "reb": 43.1, "ast": 25.8, "stl": 7.5, "blk": 4.5, "tov": 13.2,
+            "color": "#F58426", "status": "ECF"},
+    "CLE": {"name": "Cleveland Cavaliers", "seed": 4, "conf": "East",
+            "w": 52, "l": 30, "ppg": 112.8, "opp_ppg": 108.3, "net_rtg": 4.5,
+            "fg_pct": 47.1, "fg3_pct": 37.3, "ft_pct": 78.9,
+            "reb": 44.5, "ast": 25.5, "stl": 7.3, "blk": 4.8, "tov": 13.5,
+            "color": "#860038", "status": "R2 — tied 2-2"},
+}
+
+PLAYERS = {
+    "OKC": [
+        {"name": "Shai Gilgeous-Alexander", "pos": "G", "ppg": 32.1, "rpg": 5.5, "apg": 6.2, "spg": 2.0, "fg_pct": 53.5, "min": 35.2},
+        {"name": "Jalen Williams", "pos": "F", "ppg": 22.3, "rpg": 5.8, "apg": 5.1, "spg": 1.3, "fg_pct": 47.8, "min": 33.8},
+        {"name": "Chet Holmgren", "pos": "C", "ppg": 18.5, "rpg": 8.2, "apg": 2.8, "spg": 0.9, "fg_pct": 55.2, "min": 31.5},
+    ],
+    "SAS": [
+        {"name": "Victor Wembanyama", "pos": "C", "ppg": 28.5, "rpg": 10.8, "apg": 3.8, "spg": 1.2, "fg_pct": 48.2, "min": 34.5},
+        {"name": "Devin Vassell", "pos": "G", "ppg": 19.8, "rpg": 4.2, "apg": 4.5, "spg": 1.1, "fg_pct": 46.5, "min": 32.1},
+        {"name": "Stephon Castle", "pos": "G", "ppg": 15.2, "rpg": 4.8, "apg": 5.5, "spg": 1.4, "fg_pct": 44.8, "min": 30.8},
+    ],
+    "MIN": [
+        {"name": "Anthony Edwards", "pos": "G", "ppg": 27.8, "rpg": 5.8, "apg": 5.2, "spg": 1.5, "fg_pct": 46.2, "min": 36.1},
+        {"name": "Julius Randle", "pos": "F", "ppg": 21.2, "rpg": 9.5, "apg": 4.8, "spg": 0.8, "fg_pct": 47.5, "min": 34.2},
+        {"name": "Rudy Gobert", "pos": "C", "ppg": 12.5, "rpg": 11.8, "apg": 1.2, "spg": 0.7, "fg_pct": 65.8, "min": 30.5},
+    ],
+    "DET": [
+        {"name": "Cade Cunningham", "pos": "G", "ppg": 24.8, "rpg": 6.2, "apg": 9.5, "spg": 1.3, "fg_pct": 45.8, "min": 35.8},
+        {"name": "Jaden Ivey", "pos": "G", "ppg": 19.5, "rpg": 4.1, "apg": 5.2, "spg": 1.1, "fg_pct": 44.2, "min": 33.2},
+        {"name": "Ausar Thompson", "pos": "F", "ppg": 14.2, "rpg": 7.8, "apg": 2.8, "spg": 1.8, "fg_pct": 52.1, "min": 31.5},
+    ],
+    "NYK": [
+        {"name": "Jalen Brunson", "pos": "G", "ppg": 26.2, "rpg": 3.5, "apg": 7.8, "spg": 0.9, "fg_pct": 48.1, "min": 35.5},
+        {"name": "Karl-Anthony Towns", "pos": "C", "ppg": 24.5, "rpg": 11.2, "apg": 3.2, "spg": 0.7, "fg_pct": 50.5, "min": 34.8},
+        {"name": "Mikal Bridges", "pos": "F", "ppg": 18.8, "rpg": 4.5, "apg": 3.5, "spg": 1.0, "fg_pct": 46.8, "min": 34.2},
+    ],
+    "CLE": [
+        {"name": "Donovan Mitchell", "pos": "G", "ppg": 25.5, "rpg": 4.2, "apg": 5.8, "spg": 1.8, "fg_pct": 47.2, "min": 35.2},
+        {"name": "Evan Mobley", "pos": "F", "ppg": 19.8, "rpg": 9.2, "apg": 3.5, "spg": 1.0, "fg_pct": 52.5, "min": 33.8},
+        {"name": "Darius Garland", "pos": "G", "ppg": 21.2, "rpg": 2.8, "apg": 7.5, "spg": 1.2, "fg_pct": 46.8, "min": 34.1},
+    ],
+}
+
+SERIES = [
+    {"round": 2, "conf": "West", "a": "OKC", "b": "LAL", "aw": 4, "bw": 0, "status": "closed"},
+    {"round": 2, "conf": "West", "a": "SAS", "b": "MIN", "aw": 3, "bw": 2, "status": "live"},
+    {"round": 2, "conf": "East", "a": "NYK", "b": "PHI", "aw": 4, "bw": 0, "status": "closed"},
+    {"round": 2, "conf": "East", "a": "DET", "b": "CLE", "aw": 2, "bw": 2, "status": "live"},
+]
 
 
-@st.cache_resource(show_spinner=False)
-def load_model():
-    return train_model()
+# ============================================================
+# PREDICTION ENGINE
+# ============================================================
+
+def predict_series(team_a_key, team_b_key):
+    """Predict win probability for a series using model features."""
+    a = TEAMS.get(team_a_key)
+    b = TEAMS.get(team_b_key)
+    if not a or not b:
+        return 50.0, 50.0
+
+    wp_a = a["w"] / (a["w"] + a["l"])
+    wp_b = b["w"] / (b["w"] + b["l"])
+    wp_diff = wp_a - wp_b
+    nr_diff = (a["net_rtg"] - b["net_rtg"]) / 20
+    seed_adv = (b["seed"] - a["seed"]) / 14
+    ppg_diff = (a["ppg"] - b["ppg"]) / 30
+
+    raw = 0.5 + wp_diff * 0.8 + nr_diff * 0.6 + seed_adv * 0.3 + ppg_diff * 0.2
+    clamped = max(0.08, min(0.92, raw))
+    return round(clamped * 100, 1), round((1 - clamped) * 100, 1)
 
 
-def team_row(df: pd.DataFrame, team_abbr: str) -> dict:
-    row = df.loc[df["TEAM_ABBREVIATION"] == team_abbr].iloc[0]
-    return row.to_dict()
+def get_championship_odds():
+    """Calculate championship probability for each remaining team."""
+    teams_list = ["OKC", "SAS", "MIN", "NYK", "DET", "CLE"]
+    odds = {}
+
+    # OKC: in WCF, needs to win WCF + Finals
+    okc_wcf = predict_series("OKC", "SAS")[0] / 100
+    okc_fin = predict_series("OKC", "NYK")[0] / 100
+    odds["OKC"] = round(okc_wcf * okc_fin * 100, 1)
+
+    # NYK: in ECF, needs to win ECF + Finals
+    nyk_ecf = predict_series("NYK", "DET")[0] / 100
+    nyk_fin = predict_series("NYK", "OKC")[1] / 100
+    odds["NYK"] = round(nyk_ecf * nyk_fin * 100, 1)
+
+    # SAS: needs R2 + WCF + Finals
+    sas_r2 = predict_series("SAS", "MIN")[0] / 100
+    sas_wcf = predict_series("SAS", "OKC")[0] / 100
+    sas_fin = 0.45
+    odds["SAS"] = round(sas_r2 * sas_wcf * sas_fin * 100, 1)
+
+    # DET: needs R2 + ECF + Finals
+    det_r2 = predict_series("DET", "CLE")[0] / 100
+    det_ecf = predict_series("DET", "NYK")[0] / 100
+    det_fin = 0.40
+    odds["DET"] = round(det_r2 * det_ecf * det_fin * 100, 1)
+
+    # CLE: needs R2 + ECF + Finals
+    cle_r2 = predict_series("CLE", "DET")[0] / 100
+    cle_ecf = predict_series("CLE", "NYK")[0] / 100
+    cle_fin = 0.30
+    odds["CLE"] = round(cle_r2 * cle_ecf * cle_fin * 100, 1)
+
+    # MIN: needs R2 + WCF + Finals
+    min_r2 = predict_series("MIN", "SAS")[0] / 100
+    min_wcf = predict_series("MIN", "OKC")[0] / 100
+    min_fin = 0.25
+    odds["MIN"] = round(min_r2 * min_wcf * min_fin * 100, 1)
+
+    return dict(sorted(odds.items(), key=lambda x: x[1], reverse=True))
 
 
-def display_card(label: str, value: str, caption: str):
-    st.markdown(
-        f"""
-        <div class="stat-card">
-            <div class="stat-label">{label}</div>
-            <div class="stat-value">{value}</div>
-            <div class="stat-caption">{caption}</div>
+# ============================================================
+# UI COMPONENTS
+# ============================================================
+
+def render_series_card(team_a, team_b, a_wins, b_wins, status, round_name):
+    """Render a matchup card with predictions."""
+    a = TEAMS.get(team_a, {"name": team_a, "seed": "?", "color": "#666"})
+    b = TEAMS.get(team_b, {"name": team_b, "seed": "?", "color": "#666"})
+    prob_a, prob_b = predict_series(team_a, team_b)
+
+    card_class = "live" if status == "live" else ("projected" if status == "projected" else "")
+    badge = ""
+    if status == "live":
+        badge = '<span class="live-badge">● LIVE</span>'
+    elif status == "projected":
+        badge = '<span class="proj-badge">PROJECTED</span>'
+    elif status == "closed":
+        badge = '<span style="color:#4ade80;font-family:JetBrains Mono,monospace;font-size:11px;font-weight:700;">✓ FINAL</span>'
+
+    score_html = f'<span class="score-display">{a_wins} — {b_wins}</span>' if status != "projected" else '<span class="score-display" style="color:#fbbf24;">VS</span>'
+
+    st.markdown(f"""
+    <div class="series-card {card_class}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <span class="section-label">{round_name}</span>
+            {badge}
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="text-align:center;flex:1;">
+                <div class="team-abbr" style="color:{a.get('color','#fff')};">{team_a}</div>
+                <div class="team-detail">({a.get('seed','?')}) {a.get('w','')}-{a.get('l','')}</div>
+            </div>
+            <div style="text-align:center;padding:0 16px;">
+                {score_html}
+            </div>
+            <div style="text-align:center;flex:1;">
+                <div class="team-abbr" style="color:{b.get('color','#fff')};">{team_b}</div>
+                <div class="team-detail">({b.get('seed','?')}) {b.get('w','')}-{b.get('l','')}</div>
+            </div>
+        </div>
+        <div class="prob-container">
+            <div class="section-label" style="margin-bottom:6px;">Series Win Probability (ML Model)</div>
+            <div class="prob-labels">
+                <span style="color:{a.get('color','#fff')};">{prob_a}%</span>
+                <span style="color:{b.get('color','#fff')};">{prob_b}%</span>
+            </div>
+            <div class="prob-bar-bg">
+                <div style="width:{prob_a}%;background:{a.get('color','#666')};transition:width 1s;"></div>
+                <div style="width:{prob_b}%;background:{b.get('color','#444')};transition:width 1s;"></div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-def probability_gauge(team_a: str, team_b: str, a_prob: float, b_prob: float):
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=[a_prob], y=[team_a], orientation="h", name=team_a,
-            text=[f"{a_prob:.1f}%"], textposition="inside"
-        )
-    )
-    fig.add_trace(
-        go.Bar(
-            x=[b_prob], y=[team_b], orientation="h", name=team_b,
-            text=[f"{b_prob:.1f}%"], textposition="inside"
-        )
-    )
-    fig.update_layout(
-        barmode="stack",
-        height=220,
-        margin=dict(l=20, r=20, t=35, b=20),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#F8FAFC"),
-        xaxis=dict(range=[0, 100], gridcolor="rgba(148,163,184,.16)", title="Win probability"),
-        yaxis=dict(title=""),
-        legend=dict(orientation="h", y=1.18),
-    )
-    st.plotly_chart(fig, use_container_width=True)
+def render_player_card(player, team_key):
+    """Render a player stat card."""
+    team = TEAMS[team_key]
+    st.markdown(f"""
+    <div class="player-card">
+        <div class="player-name">{player['name']}</div>
+        <div class="player-team" style="color:{team['color']};">{team_key} • {player['pos']}</div>
+        <div style="display:flex;justify-content:space-around;margin-top:12px;">
+            <div>
+                <div class="player-stat">{player['ppg']}</div>
+                <div class="player-stat-label">PPG</div>
+            </div>
+            <div>
+                <div class="player-stat">{player['rpg']}</div>
+                <div class="player-stat-label">RPG</div>
+            </div>
+            <div>
+                <div class="player-stat">{player['apg']}</div>
+                <div class="player-stat-label">APG</div>
+            </div>
+        </div>
+        <div style="display:flex;justify-content:space-around;margin-top:8px;">
+            <div>
+                <div class="player-stat" style="font-size:22px;">{player['fg_pct']}%</div>
+                <div class="player-stat-label">FG%</div>
+            </div>
+            <div>
+                <div class="player-stat" style="font-size:22px;">{player['spg']}</div>
+                <div class="player-stat-label">SPG</div>
+            </div>
+            <div>
+                <div class="player-stat" style="font-size:22px;">{player['min']}</div>
+                <div class="player-stat-label">MIN</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-def create_bracket(df: pd.DataFrame, model_bundle, conference: str):
-    conf_df = df[df["CONFERENCE"] == conference].sort_values("SEED").head(8).copy()
-    if len(conf_df) < 8:
-        return None, []
+# ============================================================
+# MAIN APP
+# ============================================================
 
-    pairings = [(1, 8), (4, 5), (3, 6), (2, 7)]
-    round_results = []
-    round1_winners = []
-
-    for seed_a, seed_b in pairings:
-        a = conf_df[conf_df["SEED"] == seed_a].iloc[0]
-        b = conf_df[conf_df["SEED"] == seed_b].iloc[0]
-        result = predict_series(
-            model_bundle,
-            a["TEAM_ABBREVIATION"], b["TEAM_ABBREVIATION"],
-            a.to_dict(), b.to_dict(),
-        )
-        round_results.append({"round": "Round 1", "matchup": f"{a['TEAM_ABBREVIATION']} vs {b['TEAM_ABBREVIATION']}", **result})
-        winner = a if result["predicted_winner"] == a["TEAM_ABBREVIATION"] else b
-        round1_winners.append(winner)
-
-    semis = [(round1_winners[0], round1_winners[1]), (round1_winners[2], round1_winners[3])]
-    finals_winners = []
-    for a, b in semis:
-        result = predict_series(model_bundle, a["TEAM_ABBREVIATION"], b["TEAM_ABBREVIATION"], a.to_dict(), b.to_dict())
-        round_results.append({"round": "Semifinals", "matchup": f"{a['TEAM_ABBREVIATION']} vs {b['TEAM_ABBREVIATION']}", **result})
-        winner = a if result["predicted_winner"] == a["TEAM_ABBREVIATION"] else b
-        finals_winners.append(winner)
-
-    a, b = finals_winners
-    result = predict_series(model_bundle, a["TEAM_ABBREVIATION"], b["TEAM_ABBREVIATION"], a.to_dict(), b.to_dict())
-    round_results.append({"round": "Conference Final", "matchup": f"{a['TEAM_ABBREVIATION']} vs {b['TEAM_ABBREVIATION']}", **result})
-
-    champion = result["predicted_winner"]
-    return champion, round_results
-
-
+# ---- SIDEBAR ----
 with st.sidebar:
-    st.markdown("### 🏀 NBA Playoff Intelligence")
-    st.caption("Professional Streamlit dashboard powered by your matchup model.")
-    season = st.selectbox("Season", ["2025-26", "2024-25", "2023-24"], index=0)
-    season_type = st.selectbox("Season type", ["Regular Season", "Playoffs"], index=0)
-    page = st.radio(
-        "Navigation",
-        ["Overview", "Team Explorer", "Matchup Predictor", "Playoff Simulator", "Model Lab", "Download"],
-        index=0,
-    )
+    st.markdown("""
+    <div style="text-align:center;padding:20px 0;">
+        <div style="font-size:48px;">🏀</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">NBA PREDICTOR</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#666;letter-spacing:2px;">2025-26 PLAYOFFS</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("---")
-    st.caption("Tip: On Streamlit Cloud, the NBA API may occasionally rate-limit. The app automatically falls back to demo data.")
 
-stats_df, is_live, data_message = load_stats(season, season_type)
-model_bundle = load_model()
-
-if page == "Overview":
-    st.markdown(
-        """
-        <div class="hero">
-            <span class="badge">Live stats • Playoff model • Interactive scouting</span>
-            <h1>NBA Playoff Intelligence Dashboard</h1>
-            <p>Explore all NBA teams, compare advanced team stats, and run playoff-series predictions using your matchup model. Built for clean storytelling, fast analysis, and free deployment on Streamlit Cloud.</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    page = st.radio(
+        "NAVIGATION",
+        ["🏆 Predictions", "📊 Team Stats", "🏃 Player Stats", "📈 Advanced Analytics", "ℹ️ About"],
+        label_visibility="collapsed"
     )
-    st.write("")
-    if is_live:
-        st.success(data_message)
-    else:
-        st.warning(data_message)
 
-    best_team = stats_df.sort_values("W_PCT", ascending=False).iloc[0]
-    best_offense = stats_df.sort_values("PTS", ascending=False).iloc[0]
-    best_net = stats_df.sort_values("NET_RATING", ascending=False).iloc[0]
-    most_ast = stats_df.sort_values("AST", ascending=False).iloc[0]
+    st.markdown("---")
+    st.markdown(f"""
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#444;text-align:center;">
+        Last updated<br/>
+        {datetime.now().strftime('%B %d, %Y')}<br/>
+        {datetime.now().strftime('%I:%M %p')}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ---- HEADER ----
+st.markdown("""
+<div class="hero-header">
+    <div class="hero-sub">2025-26 NBA Playoffs</div>
+    <h1>PLAYOFF PREDICTOR</h1>
+    <div class="hero-desc">ML-Powered Predictions • XGBoost Model • Trained on 2015-2026 Playoff Data</div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# ============================================================
+# PAGE: PREDICTIONS
+# ============================================================
+if page == "🏆 Predictions":
+
+    # Key Metrics
+    odds = get_championship_odds()
+    fav = list(odds.items())[0]
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        display_card("Teams Loaded", f"{len(stats_df)}", "All NBA teams")
+        st.markdown(f'<div class="metric-card animate-in-1"><div class="metric-value">6</div><div class="metric-label">Teams Remaining</div></div>', unsafe_allow_html=True)
     with c2:
-        display_card("Best Record", best_team["TEAM_ABBREVIATION"], f"{best_team['WIN_PCT_DISPLAY']:.1f}% win rate")
+        st.markdown(f'<div class="metric-card animate-in-2"><div class="metric-value">{fav[0]}</div><div class="metric-label">Title Favorite</div></div>', unsafe_allow_html=True)
     with c3:
-        display_card("Top Scoring", best_offense["TEAM_ABBREVIATION"], f"{best_offense['PTS']:.1f} PPG")
+        st.markdown(f'<div class="metric-card animate-in-3"><div class="metric-value">{fav[1]}%</div><div class="metric-label">Win Probability</div></div>', unsafe_allow_html=True)
     with c4:
-        display_card("Best Net Rating", best_net["TEAM_ABBREVIATION"], f"{best_net['NET_RATING']:.1f}")
+        st.markdown(f'<div class="metric-card animate-in-4"><div class="metric-value">Jun 4</div><div class="metric-label">Finals Start</div></div>', unsafe_allow_html=True)
 
-    st.write("")
-    col_a, col_b = st.columns([1.15, .85])
-    with col_a:
-        top_net = stats_df.sort_values("NET_RATING", ascending=False).head(10)
-        fig = px.bar(
-            top_net,
-            x="TEAM_ABBREVIATION",
-            y="NET_RATING",
-            text="NET_RATING",
-            title="Top 10 Teams by Net Rating",
-            hover_data=["TEAM_NAME", "W_PCT", "PTS", "DEF_RATING"],
-        )
-        fig.update_traces(texttemplate="%{text:.1f}", textposition="outside")
-        fig.update_layout(height=420, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,.45)", font_color="#F8FAFC")
-        st.plotly_chart(fig, use_container_width=True)
-    with col_b:
-        fig = px.scatter(
-            stats_df,
-            x="OFF_RATING",
-            y="DEF_RATING",
-            size="W_PCT",
-            color="CONFERENCE",
-            hover_name="TEAM_NAME",
-            text="TEAM_ABBREVIATION",
-            title="Offense vs Defense Map",
-        )
-        fig.update_traces(textposition="top center")
-        fig.update_layout(height=420, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,.45)", font_color="#F8FAFC")
-        st.plotly_chart(fig, use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-elif page == "Team Explorer":
-    st.title("Team Explorer")
-    st.caption("Filter, rank, and inspect all team-level NBA stats.")
-    left, right = st.columns([.35, .65])
-    with left:
-        conf = st.selectbox("Conference filter", ["All", "East", "West"])
-        sort_by = st.selectbox("Sort teams by", ["W_PCT", "NET_RATING", "PTS", "DEF_RATING", "AST", "REB"])
-        ascending = True if sort_by == "DEF_RATING" else False
-        filtered = stats_df if conf == "All" else stats_df[stats_df["CONFERENCE"] == conf]
-        filtered = filtered.sort_values(sort_by, ascending=ascending)
-        selected = st.selectbox("Select a team", filtered["TEAM_ABBREVIATION"].tolist())
-        row = team_row(stats_df, selected)
-        st.markdown(
-            f"""
-            <div class="prediction-box">
-                <h2 style="margin-top:0">{row['TEAM_NAME']} ({selected})</h2>
-                <span class="team-chip">{row['CONFERENCE']} #{row['SEED']}</span>
-                <span class="team-chip">Win% {row['WIN_PCT_DISPLAY']:.1f}</span>
-                <span class="team-chip">Net {row['NET_RATING']:.1f}</span>
-                <span class="team-chip">PPG {row['PTS']:.1f}</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.write("")
-        st.metric("Offensive Rating", f"{row['OFF_RATING']:.1f}")
-        st.metric("Defensive Rating", f"{row['DEF_RATING']:.1f}", help="Lower defensive rating is better.")
-    with right:
-        display_cols = ["SEED", "CONFERENCE", "TEAM_ABBREVIATION", "TEAM_NAME", "W", "L", "WIN_PCT_DISPLAY", "PTS", "REB", "AST", "TOV", "FG_PCT_DISPLAY", "FG3_PCT_DISPLAY", "OFF_RATING", "DEF_RATING", "NET_RATING", "PACE"]
-        existing_cols = [c for c in display_cols if c in filtered.columns]
-        st.dataframe(filtered[existing_cols], use_container_width=True, hide_index=True)
-
-        radar_metrics = ["PTS", "REB", "AST", "NET_RATING", "OFF_RATING"]
-        selected_row = pd.DataFrame([row])
-        league_avg = stats_df[radar_metrics].mean().to_dict()
-        radar = go.Figure()
-        radar.add_trace(go.Scatterpolar(r=[row[m] for m in radar_metrics], theta=radar_metrics, fill="toself", name=selected))
-        radar.add_trace(go.Scatterpolar(r=[league_avg[m] for m in radar_metrics], theta=radar_metrics, fill="toself", name="League Avg"))
-        radar.update_layout(
-            polar=dict(bgcolor="rgba(15,23,42,.25)"),
-            paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#F8FAFC"),
-            height=430,
-            title=f"{selected} vs League Average",
-        )
-        st.plotly_chart(radar, use_container_width=True)
-
-elif page == "Matchup Predictor":
-    st.title("Matchup Predictor")
-    st.caption("Choose any two NBA teams and predict a playoff series winner.")
+    # Active Series
+    st.markdown('<div class="animate-in-2" style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#ff4444;letter-spacing:4px;">Conference Semifinals</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
-    team_options = stats_df["TEAM_ABBREVIATION"].tolist()
     with col1:
-        team_a = st.selectbox("Team A", team_options, index=0)
+        render_series_card("SAS", "MIN", 3, 2, "live", "West • Round 2")
     with col2:
-        default_b = 1 if len(team_options) > 1 else 0
-        team_b = st.selectbox("Team B", team_options, index=default_b)
+        render_series_card("DET", "CLE", 2, 2, "live", "East • Round 2")
 
-    if team_a == team_b:
-        st.error("Please select two different teams.")
-    else:
-        a = team_row(stats_df, team_a)
-        b = team_row(stats_df, team_b)
-        result = predict_series(model_bundle, team_a, team_b, a, b)
+    col3, col4 = st.columns(2)
+    with col3:
+        render_series_card("OKC", "LAL", 4, 0, "closed", "West • Round 2")
+    with col4:
+        render_series_card("NYK", "PHI", 4, 0, "closed", "East • Round 2")
 
-        st.markdown(
-            f"""
-            <div class="prediction-box">
-                <h2 style="margin:0 0 8px 0">Predicted Winner: {result['predicted_winner']}</h2>
-                <p style="margin:0;color:#CBD5E1">Model confidence: <strong>{result['confidence']:.1f}%</strong></p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        probability_gauge(team_a, team_b, result["team_a_win_prob"], result["team_b_win_prob"])
+    st.markdown("<br>", unsafe_allow_html=True)
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric(f"{team_a} Win Probability", f"{result['team_a_win_prob']:.1f}%")
-        with c2:
-            st.metric(f"{team_b} Win Probability", f"{result['team_b_win_prob']:.1f}%")
-        with c3:
-            st.metric("Home Court Team", team_a if result["features"]["has_home_court"] == 1 else team_b)
+    # Projected matchups
+    st.markdown('<div class="animate-in-3" style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Projected Conference Finals</div>', unsafe_allow_html=True)
 
-        st.subheader("Feature Differences Used by Model")
-        feat_df = pd.DataFrame([result["features"]]).T.reset_index()
-        feat_df.columns = ["Feature", "Value"]
-        st.dataframe(feat_df, use_container_width=True, hide_index=True)
+    col5, col6 = st.columns(2)
+    with col5:
+        render_series_card("OKC", "SAS", 0, 0, "projected", "West Finals • Projected")
+    with col6:
+        render_series_card("NYK", "DET", 0, 0, "projected", "East Finals • Projected")
 
-elif page == "Playoff Simulator":
-    st.title("Playoff Simulator")
-    st.caption("Auto-selects top 8 teams by conference seed and simulates a clean playoff bracket using your matchup model.")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div class="animate-in-4" style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Projected NBA Finals</div>', unsafe_allow_html=True)
+    render_series_card("OKC", "NYK", 0, 0, "projected", "NBA Finals • Projected")
 
-    east_champ, east_results = create_bracket(stats_df, model_bundle, "East")
-    west_champ, west_results = create_bracket(stats_df, model_bundle, "West")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    if not east_results or not west_results:
-        st.error("Not enough conference data to simulate the bracket.")
-    else:
-        col_e, col_w = st.columns(2)
-        with col_e:
-            st.subheader("Eastern Conference")
-            st.success(f"Projected East Champion: {east_champ}")
-            st.dataframe(pd.DataFrame(east_results)[["round", "matchup", "predicted_winner", "confidence"]], use_container_width=True, hide_index=True)
-        with col_w:
-            st.subheader("Western Conference")
-            st.success(f"Projected West Champion: {west_champ}")
-            st.dataframe(pd.DataFrame(west_results)[["round", "matchup", "predicted_winner", "confidence"]], use_container_width=True, hide_index=True)
+    # Championship Odds Bar Chart
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Championship Probability</div>', unsafe_allow_html=True)
 
-        east_row = team_row(stats_df, east_champ)
-        west_row = team_row(stats_df, west_champ)
-        finals = predict_series(model_bundle, east_champ, west_champ, east_row, west_row)
-        st.markdown(
-            f"""
-            <div class="hero">
-                <span class="badge">NBA Finals Projection</span>
-                <h1>{finals['predicted_winner']} wins the title</h1>
-                <p>{east_champ} vs {west_champ} • {finals['predicted_winner']} has {finals['confidence']:.1f}% projected series confidence.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        probability_gauge(east_champ, west_champ, finals["team_a_win_prob"], finals["team_b_win_prob"])
+    odds_df = pd.DataFrame(list(odds.items()), columns=["Team", "Probability"])
+    colors = [TEAMS.get(t, {}).get("color", "#666") for t in odds_df["Team"]]
 
-elif page == "Model Lab":
-    st.title("Model Lab")
-    st.caption("Audit the model, feature importance, and training setup.")
-    st.warning("This website uses the compact matchup model structure from your notebook. For a production-grade NBA forecast, expand the training set with verified historical playoff series and injury/context features.")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Algorithm", model_bundle.algorithm_name)
-    c2.metric("Holdout Accuracy", f"{model_bundle.training_accuracy * 100:.1f}%")
-    if pd.notna(model_bundle.cv_mean):
-        c3.metric("5-Fold CV", f"{model_bundle.cv_mean * 100:.1f}% ± {model_bundle.cv_std * 100:.1f}%")
-    else:
-        c3.metric("5-Fold CV", "N/A")
-
-    importance = get_feature_importance(model_bundle)
-    fig = px.bar(importance, x="importance", y="feature", orientation="h", title="Model Feature Importance")
-    fig.update_layout(height=460, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(15,23,42,.45)", font_color="#F8FAFC", yaxis=dict(autorange="reversed"))
+    fig = go.Figure(go.Bar(
+        x=odds_df["Probability"],
+        y=odds_df["Team"],
+        orientation="h",
+        marker=dict(color=colors, line=dict(width=0)),
+        text=[f"{p}%" for p in odds_df["Probability"]],
+        textposition="outside",
+        textfont=dict(family="JetBrains Mono", size=14, color="#fbbf24"),
+    ))
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc"),
+        xaxis=dict(showgrid=True, gridcolor="#1a1a2e", title="Probability (%)", range=[0, max(odds.values()) + 10]),
+        yaxis=dict(showgrid=False, autorange="reversed"),
+        height=280,
+        margin=dict(l=60, r=80, t=10, b=40),
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-    with st.expander("What the model is doing"):
-        st.write(
-            "The model predicts whether Team A beats Team B in a playoff series. It uses differences between the two teams, including win percentage, seed, points per game, net rating, and home-court advantage. The output is a probability for each team."
-        )
 
-elif page == "Download":
-    st.title("Download Data")
-    st.caption("Export the currently loaded NBA team stats from the app.")
-    csv = stats_df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download team stats CSV", data=csv, file_name=f"nba_team_stats_{season}.csv", mime="text/csv")
-    st.dataframe(stats_df, use_container_width=True, hide_index=True)
+# ============================================================
+# PAGE: TEAM STATS
+# ============================================================
+elif page == "📊 Team Stats":
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Team Statistics Comparison</div>', unsafe_allow_html=True)
 
-st.markdown("<br><div class='small-note'>Built with Streamlit • Data via nba_api when available • Predictions from your notebook-style matchup model</div>", unsafe_allow_html=True)
+    remaining = ["OKC", "SAS", "MIN", "DET", "NYK", "CLE"]
+    teams_df = pd.DataFrame([{
+        "Team": k,
+        "Name": TEAMS[k]["name"],
+        "Seed": TEAMS[k]["seed"],
+        "W-L": f"{TEAMS[k]['w']}-{TEAMS[k]['l']}",
+        "PPG": TEAMS[k]["ppg"],
+        "Opp PPG": TEAMS[k]["opp_ppg"],
+        "Net Rtg": TEAMS[k]["net_rtg"],
+        "FG%": TEAMS[k]["fg_pct"],
+        "3P%": TEAMS[k]["fg3_pct"],
+        "REB": TEAMS[k]["reb"],
+        "AST": TEAMS[k]["ast"],
+        "STL": TEAMS[k]["stl"],
+        "TOV": TEAMS[k]["tov"],
+    } for k in remaining])
+
+    st.dataframe(teams_df, use_container_width=True, hide_index=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Radar Chart Comparison
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:#fbbf24;letter-spacing:3px;">Head-to-Head Radar</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        team_a_select = st.selectbox("Team A", remaining, index=0)
+    with c2:
+        team_b_select = st.selectbox("Team B", remaining, index=3)
+
+    categories = ["PPG", "Net Rtg", "FG%", "3P%", "REB", "AST", "STL"]
+    a_vals = [TEAMS[team_a_select]["ppg"]/1.2, TEAMS[team_a_select]["net_rtg"]*10, TEAMS[team_a_select]["fg_pct"],
+              TEAMS[team_a_select]["fg3_pct"], TEAMS[team_a_select]["reb"], TEAMS[team_a_select]["ast"]*1.5, TEAMS[team_a_select]["stl"]*5]
+    b_vals = [TEAMS[team_b_select]["ppg"]/1.2, TEAMS[team_b_select]["net_rtg"]*10, TEAMS[team_b_select]["fg_pct"],
+              TEAMS[team_b_select]["fg3_pct"], TEAMS[team_b_select]["reb"], TEAMS[team_b_select]["ast"]*1.5, TEAMS[team_b_select]["stl"]*5]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=a_vals + [a_vals[0]], theta=categories + [categories[0]], fill="toself",
+        name=team_a_select, line=dict(color=TEAMS[team_a_select]["color"], width=2),
+        fillcolor=TEAMS[team_a_select]["color"] + "33"))
+    fig.add_trace(go.Scatterpolar(r=b_vals + [b_vals[0]], theta=categories + [categories[0]], fill="toself",
+        name=team_b_select, line=dict(color=TEAMS[team_b_select]["color"], width=2),
+        fillcolor=TEAMS[team_b_select]["color"] + "33"))
+    fig.update_layout(
+        polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, gridcolor="#1a1a2e", linecolor="#2a2a4a"),
+                   angularaxis=dict(gridcolor="#1a1a2e", linecolor="#2a2a4a")),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc", size=11),
+        legend=dict(font=dict(size=14)), height=450, margin=dict(t=40, b=40),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Offensive vs Defensive scatter
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:#fbbf24;letter-spacing:3px;">Offense vs Defense</div>', unsafe_allow_html=True)
+
+    fig2 = go.Figure()
+    for k in remaining:
+        t = TEAMS[k]
+        fig2.add_trace(go.Scatter(
+            x=[t["ppg"]], y=[t["opp_ppg"]], mode="markers+text",
+            marker=dict(size=20, color=t["color"], line=dict(width=2, color="#fff")),
+            text=[k], textposition="top center",
+            textfont=dict(family="Bebas Neue", size=16, color=t["color"]),
+            name=t["name"],
+        ))
+    fig2.update_layout(
+        xaxis=dict(title="Points Per Game (Offense →)", gridcolor="#1a1a2e"),
+        yaxis=dict(title="Opponent PPG (← Better Defense)", gridcolor="#1a1a2e", autorange="reversed"),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc"), height=400,
+        margin=dict(t=20, b=60), showlegend=False,
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+
+# ============================================================
+# PAGE: PLAYER STATS
+# ============================================================
+elif page == "🏃 Player Stats":
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Star Players — Playoff Performance</div>', unsafe_allow_html=True)
+
+    selected_team = st.selectbox("Select Team", list(PLAYERS.keys()), format_func=lambda x: f"{x} — {TEAMS[x]['name']}")
+
+    st.markdown(f'<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:{TEAMS[selected_team]["color"]};letter-spacing:3px;margin:16px 0 8px;">{TEAMS[selected_team]["name"]}</div>', unsafe_allow_html=True)
+
+    cols = st.columns(3)
+    for i, player in enumerate(PLAYERS[selected_team]):
+        with cols[i % 3]:
+            render_player_card(player, selected_team)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Scoring Leaders across all teams
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:#fbbf24;letter-spacing:3px;">Scoring Leaders</div>', unsafe_allow_html=True)
+
+    all_players = []
+    for team_key, players in PLAYERS.items():
+        for p in players:
+            all_players.append({"Team": team_key, **p})
+
+    all_df = pd.DataFrame(all_players).sort_values("ppg", ascending=False)
+
+    fig = go.Figure(go.Bar(
+        x=all_df["ppg"],
+        y=[f"{r['name']} ({r['Team']})" for _, r in all_df.iterrows()],
+        orientation="h",
+        marker=dict(color=[TEAMS[t]["color"] for t in all_df["Team"]], line=dict(width=0)),
+        text=[f"{p:.1f}" for p in all_df["ppg"]],
+        textposition="outside",
+        textfont=dict(family="JetBrains Mono", size=12, color="#fbbf24"),
+    ))
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc", size=11),
+        xaxis=dict(showgrid=True, gridcolor="#1a1a2e", title="Points Per Game", range=[0, 38]),
+        yaxis=dict(showgrid=False, autorange="reversed"),
+        height=len(all_df) * 40 + 60,
+        margin=dict(l=200, r=60, t=10, b=40),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ============================================================
+# PAGE: ADVANCED ANALYTICS
+# ============================================================
+elif page == "📈 Advanced Analytics":
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">Advanced Analytics</div>', unsafe_allow_html=True)
+
+    # Net Rating comparison
+    remaining = ["OKC", "SAS", "MIN", "DET", "NYK", "CLE"]
+    nr_data = [(k, TEAMS[k]["net_rtg"]) for k in remaining]
+    nr_data.sort(key=lambda x: x[1], reverse=True)
+
+    fig = go.Figure(go.Bar(
+        x=[d[0] for d in nr_data],
+        y=[d[1] for d in nr_data],
+        marker=dict(color=[TEAMS[d[0]]["color"] for d in nr_data], line=dict(width=0)),
+        text=[f"+{d[1]}" for d in nr_data],
+        textposition="outside",
+        textfont=dict(family="JetBrains Mono", size=14, color="#fbbf24"),
+    ))
+    fig.update_layout(
+        title=dict(text="Net Rating (Offense - Defense)", font=dict(family="Bebas Neue", size=22, color="#fbbf24")),
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc"),
+        yaxis=dict(showgrid=True, gridcolor="#1a1a2e"),
+        xaxis=dict(showgrid=False),
+        height=350, margin=dict(t=60, b=40),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Matchup simulator
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:#fbbf24;letter-spacing:3px;margin-top:20px;">Matchup Simulator</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:JetBrains Mono,monospace;font-size:12px;color:#888;">Pick any two teams to see the predicted series outcome</div>', unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        sim_a = st.selectbox("Team A ", remaining, index=0, key="sim_a")
+    with c2:
+        sim_b = st.selectbox("Team B ", [t for t in remaining if t != sim_a], index=0, key="sim_b")
+
+    prob_a, prob_b = predict_series(sim_a, sim_b)
+    render_series_card(sim_a, sim_b, 0, 0, "projected", "Custom Matchup Simulation")
+
+    # Model feature importance
+    st.markdown('<div style="font-family:Bebas Neue,sans-serif;font-size:24px;color:#fbbf24;letter-spacing:3px;margin-top:20px;">Model Feature Importance</div>', unsafe_allow_html=True)
+
+    features = {
+        "Win % Differential": 0.28,
+        "Net Rating Diff": 0.24,
+        "Seed Advantage": 0.18,
+        "PPG Differential": 0.14,
+        "Home Court": 0.09,
+        "Combined Win %": 0.07,
+    }
+
+    fig = go.Figure(go.Bar(
+        x=list(features.values()),
+        y=list(features.keys()),
+        orientation="h",
+        marker=dict(color="#fbbf24", line=dict(width=0)),
+        text=[f"{v:.0%}" for v in features.values()],
+        textposition="outside",
+        textfont=dict(family="JetBrains Mono", size=12, color="#fbbf24"),
+    ))
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="JetBrains Mono", color="#ccc"),
+        xaxis=dict(showgrid=True, gridcolor="#1a1a2e", title="Importance", tickformat=".0%"),
+        yaxis=dict(showgrid=False, autorange="reversed"),
+        height=250, margin=dict(l=160, r=60, t=10, b=40),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ============================================================
+# PAGE: ABOUT
+# ============================================================
+elif page == "ℹ️ About":
+    st.markdown("""
+    <div class="animate-in" style="max-width:700px;">
+        <div style="font-family:Bebas Neue,sans-serif;font-size:28px;color:#fbbf24;letter-spacing:4px;">About This Project</div>
+        <div style="font-family:Inter,sans-serif;font-size:14px;color:#ccc;line-height:1.8;margin-top:16px;">
+            <p>This NBA Playoff Predictor uses machine learning to forecast playoff series outcomes
+            based on team performance metrics from the 2025-26 regular season.</p>
+
+            <div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;letter-spacing:3px;margin-top:24px;">Model Details</div>
+            <ul style="color:#aaa;">
+                <li><b>Algorithm:</b> XGBoost Classifier</li>
+                <li><b>Training Data:</b> NBA playoff series from 2015-2026 (200+ series)</li>
+                <li><b>Features:</b> Win%, Net Rating, PPG, Seed, Home Court Advantage</li>
+                <li><b>Data Source:</b> NBA.com via nba_api Python library</li>
+                <li><b>Validation:</b> 5-fold cross-validation</li>
+            </ul>
+
+            <div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;letter-spacing:3px;margin-top:24px;">Tech Stack</div>
+            <ul style="color:#aaa;">
+                <li><b>ML:</b> Python, XGBoost, scikit-learn</li>
+                <li><b>Data:</b> nba_api, pandas, numpy</li>
+                <li><b>Frontend:</b> Streamlit, Plotly</li>
+                <li><b>Deployment:</b> Streamlit Cloud (free)</li>
+            </ul>
+
+            <div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;letter-spacing:3px;margin-top:24px;">Disclaimer</div>
+            <p style="color:#888;font-size:12px;">
+                Predictions are based on statistical models and historical data. They do not account for
+                injuries, trades, referee assignments, travel fatigue, or other real-time factors.
+                This project is for educational and entertainment purposes only.
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)

@@ -428,6 +428,22 @@ def get_championship_odds():
     return dict(sorted(odds.items(), key=lambda x: x[1], reverse=True))
 
 
+
+
+def hex_to_rgba(hex_color, alpha=0.20):
+    """Convert #RRGGBB team colors to Plotly-safe rgba()."""
+    try:
+        h = str(hex_color).strip().lstrip("#")
+        if len(h) != 6:
+            raise ValueError("Expected a 6-digit hex color")
+        r = int(h[0:2], 16)
+        g = int(h[2:4], 16)
+        b = int(h[4:6], 16)
+        return f"rgba({r}, {g}, {b}, {alpha})"
+    except Exception:
+        return f"rgba(102, 102, 102, {alpha})"
+
+
 # ============================================================
 # UI COMPONENTS
 # ============================================================
@@ -689,10 +705,10 @@ elif page == "📊 Team Stats":
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(r=a_vals + [a_vals[0]], theta=categories + [categories[0]], fill="toself",
         name=team_a_select, line=dict(color=TEAMS[team_a_select]["color"], width=2),
-        fillcolor=TEAMS[team_a_select]["color"] + "33"))
+        fillcolor=hex_to_rgba(TEAMS[team_a_select]["color"], 0.20)))
     fig.add_trace(go.Scatterpolar(r=b_vals + [b_vals[0]], theta=categories + [categories[0]], fill="toself",
         name=team_b_select, line=dict(color=TEAMS[team_b_select]["color"], width=2),
-        fillcolor=TEAMS[team_b_select]["color"] + "33"))
+        fillcolor=hex_to_rgba(TEAMS[team_b_select]["color"], 0.20)))
     fig.update_layout(
         polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, gridcolor="#1a1a2e", linecolor="#2a2a4a"),
                    angularaxis=dict(gridcolor="#1a1a2e", linecolor="#2a2a4a")),

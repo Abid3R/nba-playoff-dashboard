@@ -248,75 +248,90 @@ def render_series_card(team_a, team_b, a_wins, b_wins, status, round_name, extra
     b = TEAMS.get(team_b, {"name": team_b, "seed": "?", "color": "#666", "w": 0, "l": 0})
     prob_a, prob_b = predict_series(team_a, team_b)
 
-    card_class = "live" if status == "live" else ("projected" if status == "projected" else ("upcoming" if status == "upcoming" else ""))
-
-    badge = ""
+    # Border color based on status
     if status == "live":
-        badge = '<span class="live-badge">● LIVE SERIES</span>'
+        border_style = "border:1px solid #ff4444;"
     elif status == "projected":
-        badge = '<span class="proj-badge">PROJECTED</span>'
+        border_style = "border:1px dashed #fbbf24;"
     elif status == "upcoming":
-        badge = '<span class="upcoming-badge">SCHEDULED</span>'
-    elif status == "closed":
+        border_style = "border:1px solid #22c55e;"
+    else:
+        border_style = "border:1px solid #2a2a4a;"
+
+    # Badge HTML
+    if status == "live":
+        badge = '<span style="display:inline-block;background:#ff4444;color:white;font-size:10px;font-weight:800;padding:2px 10px;border-radius:4px;font-family:JetBrains Mono,monospace;">● LIVE SERIES</span>'
+    elif status == "projected":
+        badge = '<span style="display:inline-block;background:#fbbf24;color:#000;font-size:10px;font-weight:800;padding:2px 10px;border-radius:4px;font-family:JetBrains Mono,monospace;">PROJECTED</span>'
+    elif status == "upcoming":
+        badge = '<span style="display:inline-block;background:#22c55e;color:#000;font-size:10px;font-weight:800;padding:2px 10px;border-radius:4px;font-family:JetBrains Mono,monospace;">SCHEDULED</span>'
+    else:
         badge = '<span style="color:#4ade80;font-family:JetBrains Mono,monospace;font-size:11px;font-weight:700;">✓ FINAL</span>'
 
-    score_html = f'<span class="score-display">{a_wins} — {b_wins}</span>' if status not in ("projected",) else '<span class="score-display" style="color:#fbbf24;">VS</span>'
+    # Score display
+    if status == "projected":
+        score_html = f'<span style="font-family:Bebas Neue,sans-serif;font-size:32px;color:#fbbf24;letter-spacing:2px;">VS</span>'
+    else:
+        score_html = f'<span style="font-family:Bebas Neue,sans-serif;font-size:32px;color:#ffffff;letter-spacing:2px;">{a_wins} — {b_wins}</span>'
 
+    # Extra info line
     extra_html = f'<div style="text-align:center;font-family:JetBrains Mono,monospace;font-size:10px;color:#fbbf24;margin-top:6px;">{extra_info}</div>' if extra_info else ""
 
-    st.markdown(f"""
-    <div class="series-card {card_class}">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <span class="section-label">{round_name}</span>
-            {badge}
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="text-align:center;flex:1;">
-                <div class="team-abbr" style="color:{a.get('color','#fff')};">{team_a}</div>
-                <div class="team-detail">({a.get('seed','?')}) {a.get('w','')}-{a.get('l','')}</div>
-            </div>
-            <div style="text-align:center;padding:0 16px;">
-                {score_html}
-            </div>
-            <div style="text-align:center;flex:1;">
-                <div class="team-abbr" style="color:{b.get('color','#fff')};">{team_b}</div>
-                <div class="team-detail">({b.get('seed','?')}) {b.get('w','')}-{b.get('l','')}</div>
-            </div>
-        </div>
-        {extra_html}
-        <div class="prob-container">
-            <div class="section-label" style="margin-bottom:6px;">Series Win Probability (ML Model)</div>
-            <div class="prob-labels">
-                <span style="color:{a.get('color','#fff')};">{prob_a}%</span>
-                <span style="color:{b.get('color','#fff')};">{prob_b}%</span>
-            </div>
-            <div class="prob-bar-bg">
-                <div style="width:{prob_a}%;background:{a.get('color','#666')};transition:width 1s;"></div>
-                <div style="width:{prob_b}%;background:{b.get('color','#444')};transition:width 1s;"></div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    col_a = a.get("color", "#fff")
+    col_b = b.get("color", "#fff")
+
+    html = f"""<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);{border_style}border-radius:14px;padding:20px;margin-bottom:16px;overflow:hidden;">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+<span style="font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#666;">{round_name}</span>
+{badge}
+</div>
+<div style="display:flex;align-items:center;justify-content:space-between;">
+<div style="text-align:center;flex:1;">
+<div style="font-family:Bebas Neue,sans-serif;font-size:36px;letter-spacing:3px;font-weight:900;color:{col_a};">{team_a}</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;">({a.get('seed','?')}) {a.get('w','')}-{a.get('l','')}</div>
+</div>
+<div style="text-align:center;padding:0 16px;">
+{score_html}
+</div>
+<div style="text-align:center;flex:1;">
+<div style="font-family:Bebas Neue,sans-serif;font-size:36px;letter-spacing:3px;font-weight:900;color:{col_b};">{team_b}</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;">({b.get('seed','?')}) {b.get('w','')}-{b.get('l','')}</div>
+</div>
+</div>
+{extra_html}
+<div style="margin-top:12px;border-top:1px solid #2a2a4a;padding-top:10px;">
+<div style="font-family:JetBrains Mono,monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#666;margin-bottom:6px;">Series Win Probability (ML Model)</div>
+<div style="display:flex;justify-content:space-between;font-family:JetBrains Mono,monospace;font-size:13px;font-weight:700;margin-bottom:4px;">
+<span style="color:{col_a};">{prob_a}%</span>
+<span style="color:{col_b};">{prob_b}%</span>
+</div>
+<div style="height:10px;background:#1a1a2e;border-radius:5px;overflow:hidden;display:flex;">
+<div style="width:{prob_a}%;background:{col_a};"></div>
+<div style="width:{prob_b}%;background:{col_b};"></div>
+</div>
+</div>
+</div>"""
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_player_card(player, team_key):
     team = TEAMS[team_key]
-    st.markdown(f"""
-    <div class="player-card">
-        <div class="player-name">{player['name']}</div>
-        <div class="player-team" style="color:{team['color']};">{team_key} • {player['pos']}</div>
-        <div style="display:flex;justify-content:space-around;margin-top:12px;">
-            <div><div class="player-stat">{player['ppg']}</div><div class="player-stat-label">PPG</div></div>
-            <div><div class="player-stat">{player['rpg']}</div><div class="player-stat-label">RPG</div></div>
-            <div><div class="player-stat">{player['apg']}</div><div class="player-stat-label">APG</div></div>
-        </div>
-        <div style="display:flex;justify-content:space-around;margin-top:8px;">
-            <div><div class="player-stat" style="font-size:22px;">{player['fg_pct']}%</div><div class="player-stat-label">FG%</div></div>
-            <div><div class="player-stat" style="font-size:22px;">{player['spg']}</div><div class="player-stat-label">SPG</div></div>
-            <div><div class="player-stat" style="font-size:22px;">{player['min']}</div><div class="player-stat-label">MIN</div></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    col = team["color"]
+    html = f"""<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border:1px solid #2a2a4a;border-radius:12px;padding:16px;text-align:center;margin-bottom:12px;">
+<div style="font-family:Inter,sans-serif;font-weight:800;font-size:16px;color:#fff;margin-bottom:4px;">{player['name']}</div>
+<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:{col};letter-spacing:1px;">{team_key} • {player['pos']}</div>
+<div style="display:flex;justify-content:space-around;margin-top:12px;">
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:32px;color:#fbbf24;line-height:1;">{player['ppg']}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">PPG</div></div>
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:32px;color:#fbbf24;line-height:1;">{player['rpg']}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">RPG</div></div>
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:32px;color:#fbbf24;line-height:1;">{player['apg']}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">APG</div></div>
+</div>
+<div style="display:flex;justify-content:space-around;margin-top:8px;">
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;line-height:1;">{player['fg_pct']}%</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">FG%</div></div>
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;line-height:1;">{player['spg']}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">SPG</div></div>
+<div><div style="font-family:Bebas Neue,sans-serif;font-size:22px;color:#fbbf24;line-height:1;">{player['min']}</div><div style="font-family:JetBrains Mono,monospace;font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">MIN</div></div>
+</div>
+</div>"""
+    st.markdown(html, unsafe_allow_html=True)
 
 
 # ============================================================
@@ -379,13 +394,13 @@ if page == "🏆 Predictions":
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.markdown(f'<div class="metric-card animate-in-1"><div class="metric-value">5</div><div class="metric-label">Teams Remaining</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border:1px solid #2a2a4a;border-radius:12px;padding:20px;text-align:center;"><div style="font-family:Bebas Neue,sans-serif;font-size:42px;color:#fbbf24;line-height:1;">5</div><div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;letter-spacing:1px;margin-top:4px;">Teams Remaining</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="metric-card animate-in-2"><div class="metric-value">{fav[0]}</div><div class="metric-label">Title Favorite</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border:1px solid #2a2a4a;border-radius:12px;padding:20px;text-align:center;"><div style="font-family:Bebas Neue,sans-serif;font-size:42px;color:#fbbf24;line-height:1;">{fav[0]}</div><div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;letter-spacing:1px;margin-top:4px;">Title Favorite</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="metric-card animate-in-3"><div class="metric-value">{fav[1]}%</div><div class="metric-label">Win Probability</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border:1px solid #2a2a4a;border-radius:12px;padding:20px;text-align:center;"><div style="font-family:Bebas Neue,sans-serif;font-size:42px;color:#fbbf24;line-height:1;">{fav[1]}%</div><div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;letter-spacing:1px;margin-top:4px;">Win Probability</div></div>', unsafe_allow_html=True)
     with c4:
-        st.markdown(f'<div class="metric-card animate-in-4"><div class="metric-value">Jun 4</div><div class="metric-label">Finals Start</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background:linear-gradient(135deg,#0f0f1a,#1a1a2e);border:1px solid #2a2a4a;border-radius:12px;padding:20px;text-align:center;"><div style="font-family:Bebas Neue,sans-serif;font-size:42px;color:#fbbf24;line-height:1;">Jun 4</div><div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#888;letter-spacing:1px;margin-top:4px;">Finals Start</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
